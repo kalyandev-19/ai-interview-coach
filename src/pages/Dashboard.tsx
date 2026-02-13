@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import { Plus, Clock, CheckCircle2, Loader2, Briefcase } from "lucide-react";
 import { format } from "date-fns";
+import UserProfile from "@/components/UserProfile";
 
 interface Session {
   id: string;
@@ -54,6 +55,10 @@ const Dashboard = () => {
             <Plus className="mr-2 h-4 w-4" />
             New Interview
           </Button>
+        </div>
+
+        <div className="mb-8">
+          <UserProfile />
         </div>
 
         {loading ? (
