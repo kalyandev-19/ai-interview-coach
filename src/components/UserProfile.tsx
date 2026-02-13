@@ -38,11 +38,27 @@ const UserProfile = () => {
         .from("profiles")
         .select("full_name, email, job_title, phone, bio")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!error && data) {
         setProfile(data);
         setForm(data);
+      } else if (!data) {
+        // If no profile exists, create one for the user
+        const { data: newProfile } = await supabase
+          .from("profiles")
+          .insert({
+            user_id: user.id,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || null,
+          })
+          .select()
+          .single();
+        
+        if (newProfile) {
+          setProfile(newProfile);
+          setForm(newProfile);
+        }
       }
       setLoading(false);
     };
