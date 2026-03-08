@@ -10,13 +10,36 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { sessionId, jobRole, difficulty } = await req.json();
+    const { sessionId, jobRole, difficulty, questionType, interviewMode, resumeSkills } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Build context-aware prompt
+    let questionContext = `Generate 5 ${difficulty} difficulty interview questions for a ${jobRole} position.`;
+
+    if (questionType === "behavioral") {
+      questionContext += " Focus on behavioral questions using the STAR method (Situation, Task, Action, Result). Ask about past experiences, challenges, and how the candidate handled specific situations.";
+    } else if (questionType === "hr") {
+      questionContext += " Focus on HR interview questions about culture fit, teamwork, salary expectations, work-life balance, conflict resolution, and motivation.";
+    } else if (questionType === "technical") {
+      questionContext += " Focus on deep technical questions testing specific knowledge, problem-solving abilities, and technical concepts relevant to the role.";
+    } else {
+      questionContext += " Mix of technical and soft-skill questions.";
+    }
+
+    if (interviewMode === "interview") {
+      questionContext += " Make questions more challenging and realistic, as this is a formal interview simulation.";
+    }
+
+    if (resumeSkills && resumeSkills.length > 0) {
+      questionContext += ` The candidate has these skills from their resume: ${resumeSkills.join(", ")}. Tailor some questions to probe their claimed expertise in these areas.`;
+    }
+
+    questionContext += ' Return ONLY a JSON array of strings, no other text. Example: ["Question 1?", "Question 2?"]';
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -29,11 +52,11 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "You are an expert interviewer. Generate exactly 5 interview questions.",
+            content: "You are an expert interviewer with deep knowledge of hiring practices across industries.",
           },
           {
             role: "user",
-            content: `Generate 5 ${difficulty} difficulty interview questions for a ${jobRole} position. Return ONLY a JSON array of strings, no other text. Example: ["Question 1?", "Question 2?"]`,
+            content: questionContext,
           },
         ],
         tools: [
@@ -85,14 +108,12 @@ serve(async (req) => {
       const args = JSON.parse(toolCall.function.arguments);
       questions = args.questions;
     } else {
-      // Fallback: try to parse content
       const content = aiData.choices?.[0]?.message?.content || "[]";
       const match = content.match(/\[[\s\S]*\]/);
       questions = match ? JSON.parse(match[0]) : [];
     }
 
     if (!questions || questions.length === 0) {
-      // Provide defaults
       questions = [
         `Tell me about yourself and why you're interested in this ${jobRole} role.`,
         `What's your greatest strength as a ${jobRole}?`,
@@ -102,7 +123,6 @@ serve(async (req) => {
       ];
     }
 
-    // Insert questions
     const inserts = questions.slice(0, 5).map((q, i) => ({
       session_id: sessionId,
       question_text: q,
