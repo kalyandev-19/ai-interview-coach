@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
+import ScoreTrendChart from "@/components/dashboard/ScoreTrendChart";
+import DifficultyBreakdownChart from "@/components/dashboard/DifficultyBreakdownChart";
+import QuestionTypeChart from "@/components/dashboard/QuestionTypeChart";
 import {
   Plus, Clock, CheckCircle2, Loader2, Briefcase, FileText,
   Compass, TrendingUp, BarChart3, BookOpen, Zap, Target
@@ -30,12 +33,19 @@ interface Stats {
   interviewCount: number;
 }
 
+interface TrendPoint { date: string; clarity: number; relevance: number; }
+interface DifficultyData { name: string; value: number; }
+interface TypeData { type: string; avgClarity: number; avgRelevance: number; }
+
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({ total: 0, completed: 0, avgClarity: 0, avgRelevance: 0, practiceCount: 0, interviewCount: 0 });
+  const [trendData, setTrendData] = useState<TrendPoint[]>([]);
+  const [difficultyData, setDifficultyData] = useState<DifficultyData[]>([]);
+  const [typeData, setTypeData] = useState<TypeData[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -47,14 +57,23 @@ const Dashboard = () => {
       if (sessData) {
         setSessions(sessData as Session[]);
         const completed = sessData.filter((s) => s.status === "completed");
-        const practice = sessData.filter((s) => (s as any).interview_mode === "practice").length;
-        const interview = sessData.filter((s) => (s as any).interview_mode === "interview").length;
+        const practice = sessData.filter((s) => s.interview_mode === "practice").length;
+        const interview = sessData.filter((s) => s.interview_mode === "interview").length;
 
-        // Fetch scores for completed sessions
+        // Difficulty breakdown
+        const easy = sessData.filter((s) => s.difficulty === "basic" || s.difficulty === "easy").length;
+        const medium = sessData.filter((s) => s.difficulty === "medium").length;
+        const hard = sessData.filter((s) => s.difficulty === "hard").length;
+        setDifficultyData([
+          { name: "Easy", value: easy },
+          { name: "Medium", value: medium },
+          { name: "Hard", value: hard },
+        ]);
+
         if (completed.length > 0) {
           const { data: qData } = await supabase
             .from("interview_questions")
-            .select("clarity_score, relevance_score")
+            .select("clarity_score, relevance_score, session_id")
             .in("session_id", completed.map((s) => s.id));
 
           const scored = qData?.filter((q) => q.clarity_score && q.relevance_score) || [];
@@ -62,13 +81,49 @@ const Dashboard = () => {
           const avgR = scored.length ? scored.reduce((s, q) => s + (q.relevance_score || 0), 0) / scored.length : 0;
 
           setStats({
-            total: sessData.length,
-            completed: completed.length,
-            avgClarity: Math.round(avgC * 10) / 10,
-            avgRelevance: Math.round(avgR * 10) / 10,
-            practiceCount: practice,
-            interviewCount: interview,
+            total: sessData.length, completed: completed.length,
+            avgClarity: Math.round(avgC * 10) / 10, avgRelevance: Math.round(avgR * 10) / 10,
+            practiceCount: practice, interviewCount: interview,
           });
+
+          // Trend data: average scores per completed session, ordered by date
+          const sessionScores: Record<string, { clarity: number[]; relevance: number[]; date: string }> = {};
+          for (const s of completed) {
+            sessionScores[s.id] = { clarity: [], relevance: [], date: s.completed_at || s.created_at };
+          }
+          for (const q of scored) {
+            if (sessionScores[q.session_id]) {
+              sessionScores[q.session_id].clarity.push(q.clarity_score || 0);
+              sessionScores[q.session_id].relevance.push(q.relevance_score || 0);
+            }
+          }
+          const trend = Object.values(sessionScores)
+            .map((v) => ({
+              date: format(new Date(v.date), "MMM d"),
+              clarity: v.clarity.length ? Math.round((v.clarity.reduce((a, b) => a + b, 0) / v.clarity.length) * 10) / 10 : 0,
+              relevance: v.relevance.length ? Math.round((v.relevance.reduce((a, b) => a + b, 0) / v.relevance.length) * 10) / 10 : 0,
+            }))
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          setTrendData(trend);
+
+          // Type data: average scores grouped by question_type
+          const typeMap: Record<string, { clarity: number[]; relevance: number[] }> = {};
+          for (const s of completed) {
+            const qt = s.question_type || "general";
+            if (!typeMap[qt]) typeMap[qt] = { clarity: [], relevance: [] };
+            const sQuestions = scored.filter((q) => q.session_id === s.id);
+            for (const q of sQuestions) {
+              typeMap[qt].clarity.push(q.clarity_score || 0);
+              typeMap[qt].relevance.push(q.relevance_score || 0);
+            }
+          }
+          setTypeData(
+            Object.entries(typeMap).map(([type, v]) => ({
+              type: type.charAt(0).toUpperCase() + type.slice(1),
+              avgClarity: v.clarity.length ? Math.round((v.clarity.reduce((a, b) => a + b, 0) / v.clarity.length) * 10) / 10 : 0,
+              avgRelevance: v.relevance.length ? Math.round((v.relevance.reduce((a, b) => a + b, 0) / v.relevance.length) * 10) / 10 : 0,
+            }))
+          );
         } else {
           setStats({ total: sessData.length, completed: 0, avgClarity: 0, avgRelevance: 0, practiceCount: practice, interviewCount: interview });
         }
@@ -128,6 +183,17 @@ const Dashboard = () => {
               <Zap className="h-4 w-4 text-destructive" />
               <span className="text-sm font-medium text-destructive">{stats.interviewCount} Interview</span>
             </div>
+          </div>
+        )}
+
+        {/* Charts Section */}
+        {stats.completed > 0 && (
+          <div className="mb-8 grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <ScoreTrendChart data={trendData} />
+            </div>
+            <DifficultyBreakdownChart data={difficultyData} />
+            <QuestionTypeChart data={typeData} />
           </div>
         )}
 
