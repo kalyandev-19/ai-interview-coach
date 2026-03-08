@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import NewInterview from "./pages/NewInterview";
 import Interview from "./pages/Interview";
 import Feedback from "./pages/Feedback";
+import ResumeUpload from "./pages/ResumeUpload";
+import CareerGuidance from "./pages/CareerGuidance";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
@@ -29,6 +31,8 @@ const App = () => (
             <Route path="/new-interview" element={<ProtectedRoute><NewInterview /></ProtectedRoute>} />
             <Route path="/interview/:sessionId" element={<ProtectedRoute><Interview /></ProtectedRoute>} />
             <Route path="/feedback/:sessionId" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
+            <Route path="/resume" element={<ProtectedRoute><ResumeUpload /></ProtectedRoute>} />
+            <Route path="/career-guidance" element={<ProtectedRoute><CareerGuidance /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
