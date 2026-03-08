@@ -67,7 +67,10 @@ export type Database = {
           created_at: string
           difficulty: string
           id: string
+          interview_mode: string
           job_role: string
+          question_type: string
+          resume_url: string | null
           status: string
           user_id: string
         }
@@ -76,7 +79,10 @@ export type Database = {
           created_at?: string
           difficulty?: string
           id?: string
+          interview_mode?: string
           job_role: string
+          question_type?: string
+          resume_url?: string | null
           status?: string
           user_id: string
         }
@@ -85,7 +91,10 @@ export type Database = {
           created_at?: string
           difficulty?: string
           id?: string
+          interview_mode?: string
           job_role?: string
+          question_type?: string
+          resume_url?: string | null
           status?: string
           user_id?: string
         }
@@ -123,6 +132,42 @@ export type Database = {
           job_title?: string | null
           phone?: string | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      resumes: {
+        Row: {
+          analysis: Json | null
+          created_at: string
+          experience_summary: string | null
+          file_name: string
+          file_url: string
+          id: string
+          skills: string[] | null
+          suggestions: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis?: Json | null
+          created_at?: string
+          experience_summary?: string | null
+          file_name: string
+          file_url: string
+          id?: string
+          skills?: string[] | null
+          suggestions?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis?: Json | null
+          created_at?: string
+          experience_summary?: string | null
+          file_name?: string
+          file_url?: string
+          id?: string
+          skills?: string[] | null
+          suggestions?: string | null
           user_id?: string
         }
         Relationships: []
